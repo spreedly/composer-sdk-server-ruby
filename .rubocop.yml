@@ -1,0 +1,49 @@
+AllCops:
+  # New cops stay off until a RuboCop bump is reviewed, so a release never turns
+  # an unrelated PR red. Enable them deliberately alongside the version bump.
+  NewCops: disable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - 'coverage/**/*'
+
+# Relax line length slightly for complex API headers/URLs
+Layout/LineLength:
+  Max: 130
+
+# Specs legitimately have large describe/it blocks
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+
+# The checkpoint method is a complex polling loop; splitting further reduces clarity
+Metrics/MethodLength:
+  Max: 90
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/ClassLength:
+  Max: 168
+
+Metrics/ModuleLength:
+  Max: 130
+
+# checkpoint has many keyword args; using an options hash would lose named-param benefits
+Metrics/ParameterLists:
+  MaxOptionalParameters: 5
+  Max: 8
+
+# checkpoint's polling loop has inherently high complexity
+Metrics/AbcSize:
+  Max: 90
+
+Metrics/CyclomaticComplexity:
+  Max: 30
+
+Metrics/PerceivedComplexity:
+  Max: 32
+
+# Gemspec development deps are intentionally listed there
+Gemspec/DevelopmentDependencies:
+  Enabled: false
