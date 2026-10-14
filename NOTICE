@@ -1,2 +1,13 @@
 Spreedly Composer Ruby Server SDK
 Copyright 2025-2026 Spreedly, Inc.
+
+This SDK depends on the following gems at runtime. They are installed from
+RubyGems alongside the SDK; they are not bundled with it. Full license texts
+are in THIRD-PARTY-LICENSES.
+
+- faraday (MIT)
+- faraday-net_http (MIT)
+- net-http (Ruby / BSD-2-Clause)
+- uri (Ruby / BSD-2-Clause)
+- json (Ruby)
+- logger (Ruby / BSD-2-Clause)
