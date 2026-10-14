@@ -8,6 +8,8 @@ are in THIRD-PARTY-LICENSES.
 - faraday (MIT)
 - faraday-net_http (MIT)
 - net-http (Ruby / BSD-2-Clause)
+- net-protocol (Ruby / BSD-2-Clause)
+- timeout (Ruby / BSD-2-Clause)
 - uri (Ruby / BSD-2-Clause)
 - json (Ruby)
 - logger (Ruby / BSD-2-Clause)
