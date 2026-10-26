@@ -36,16 +36,22 @@ Check out the [Client SDK](https://npmjs.com/package/@dodgeball/trust-sdk-client
 
 ## Installation
 
-The gem isn't on RubyGems yet. Add this line to your application's Gemfile to install it from GitHub:
+Add this line to your application's Gemfile:
 
 ```ruby
-gem 'spreedly-composer-sdk-server', git: 'https://github.com/spreedly/composer-sdk-server-ruby.git'
+gem 'spreedly-composer-sdk-server'
 ```
 
 And then run:
 
 ```sh
 bundle install
+```
+
+Or install it yourself:
+
+```sh
+gem install spreedly-composer-sdk-server
 ```
 
 ## Usage
