@@ -1,0 +1,177 @@
+name: Publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Runs all dependency code (Bundler, tests, gem installs) without id-token,
+  # so nothing here can request the OIDC token RubyGems accepts for publishing.
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.check.outputs.name }}
+      version: ${{ steps.check.outputs.version }}
+      gem: ${{ steps.build.outputs.gem }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the main ancestry check can see main.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # With no ruby-version, it reads .ruby-version.
+      - uses: ruby/setup-ruby@e1bd6146574da5e0795075b5319b300edb30c5b0 # v1.333.0
+
+      - name: Check tag, version and CHANGELOG.md
+        id: check
+        run: |
+          NAME="$(ruby -e 'print Gem::Specification.load("composer-sdk-server.gemspec").name')"
+          VERSION="$(ruby -e 'require_relative "lib/composer/version"; print Composer::VERSION')"
+          if [[ "${GITHUB_REF_NAME}" != "v${VERSION}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match lib/composer/version.rb version ${VERSION}"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "Tagged commit ${GITHUB_SHA} is not on main"
+            exit 1
+          fi
+          HEADING="$(grep -m1 -E "^## ${VERSION//./\\.}( |$)" CHANGELOG.md || true)"
+          if [[ -z "${HEADING}" || "${HEADING,,}" == *unreleased* ]]; then
+            echo "CHANGELOG.md needs a released '## ${VERSION}' section"
+            exit 1
+          fi
+          awk -v v="${VERSION}" '/^## / { if (found) exit; if ($2 == v) { found = 1; next } } found' CHANGELOG.md > release-notes.md
+          echo "name=${NAME}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install dependencies
+        run: bundle install
+
+      - name: Test
+        run: bundle exec rspec
+
+      - name: Build
+        id: build
+        env:
+          NAME: ${{ steps.check.outputs.name }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          GEM="${NAME}-${VERSION}.gem"
+          gem build composer-sdk-server.gemspec --output "${GEM}"
+          sha256sum "${GEM}" > SHA256SUMS
+          echo "gem=${GEM}" >> "${GITHUB_OUTPUT}"
+
+      # The audit and SBOM read an install of the built gem only, so the
+      # Gemfile's development and test gems aren't listed. The syft hash pins
+      # the download, and syft lists only the installed gems, without file
+      # entries for their gemspecs.
+      - name: Audit runtime dependencies and write SBOM
+        env:
+          NAME: ${{ steps.check.outputs.name }}
+          VERSION: ${{ steps.check.outputs.version }}
+          GEM: ${{ steps.build.outputs.gem }}
+          SYFT_VERSION: 1.55.0
+          SYFT_SHA256: bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d
+          SYFT_FILE_METADATA_SELECTION: none
+        run: |
+          ROOT="${RUNNER_TEMP}/runtime"
+          gem install --install-dir "${ROOT}" --no-document "./${GEM}"
+          mkdir "${RUNNER_TEMP}/audit"
+          printf "source 'https://rubygems.org'\ngem '%s', '%s'\n" "${NAME}" "${VERSION}" > "${RUNNER_TEMP}/audit/Gemfile"
+          GEM_HOME="${ROOT}" GEM_PATH="${ROOT}" BUNDLE_GEMFILE="${RUNNER_TEMP}/audit/Gemfile" bundle lock --local
+          gem install bundler-audit -v 0.9.3 --no-document
+          bundle-audit check --update "${RUNNER_TEMP}/audit"
+          ARCHIVE="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfLO "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${ARCHIVE}"
+          echo "${SYFT_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar -xzf "${ARCHIVE}" syft
+          ./syft scan "dir:${ROOT}" --override-default-catalogers ruby-installed-gemspec-cataloger --source-name "${NAME}" --source-version "${VERSION}" -o cyclonedx-json=sbom.cdx.json
+
+      # Scans the files customers receive. The hash pins the download; --redact
+      # keeps a found secret's value out of the public log while --verbose
+      # still shows where it is.
+      - name: Scan gem for secrets
+        env:
+          GEM: ${{ steps.build.outputs.gem }}
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          ARCHIVE="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${ARCHIVE}"
+          echo "${GITLEAKS_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar -xzf "${ARCHIVE}" gitleaks
+          PACKAGE="${RUNNER_TEMP}/package"
+          mkdir -p "${PACKAGE}/data"
+          tar -xf "${GEM}" -C "${PACKAGE}"
+          tar -xzf "${PACKAGE}/data.tar.gz" -C "${PACKAGE}/data"
+          gzip -d "${PACKAGE}/metadata.gz"
+          ./gitleaks dir "${PACKAGE}" --redact --verbose
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            *.gem
+            SHA256SUMS
+            sbom.cdx.json
+            release-notes.md
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Required reviewers and the v* tag rule live on this environment, and the
+    # RubyGems trusted publisher is bound to it.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NAME: ${{ needs.build.outputs.name }}
+      VERSION: ${{ needs.build.outputs.version }}
+      GEM: ${{ needs.build.outputs.gem }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+
+      - name: Verify gem checksum
+        run: sha256sum -c SHA256SUMS
+
+      - name: Check version is not already on RubyGems
+        run: |
+          STATUS="$(curl -sS -o /dev/null -w "%{http_code}" "https://rubygems.org/api/v2/rubygems/${NAME}/versions/${VERSION}.json")"
+          if [[ "${STATUS}" != "404" ]]; then
+            echo "Expected ${NAME} ${VERSION} to be missing from RubyGems, got HTTP ${STATUS}"
+            exit 1
+          fi
+
+      - uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+
+      # Uses the runner's preinstalled RubyGems, so no Ruby setup or Bundler
+      # runs in this job.
+      - name: Publish to RubyGems
+        run: gem push "${GEM}"
+
+  release:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GEM: ${{ needs.build.outputs.gem }}
+        run: gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes-file release-notes.md "./${GEM}" SHA256SUMS sbom.cdx.json
