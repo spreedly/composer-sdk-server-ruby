@@ -30,7 +30,7 @@ The Composer Server SDK for Ruby makes integration with the Composer API easy an
 
 ## Related
 
-Check out the [Client SDK](https://npmjs.com/package/@dodgeball/trust-sdk-client) for how to integrate Composer into your frontend applications.
+Check out the [Client SDK](https://www.npmjs.com/package/@spreedly/composer-sdk-client) for how to integrate Composer into your frontend applications.
 
 [Composer examples](https://github.com/spreedly/composer-examples) has a runnable example server for this SDK in `server/ruby`, and a web client that calls it.
 
@@ -219,7 +219,7 @@ The SDK writes JSON log lines to standard output. At the default `INFO` level it
 
 | Parameter | Required | Description |
 | --- | --- | --- |
-| `source_token` | Either this or `session_id` | A token representing the device making the request. Obtained from the [Client SDK](https://npmjs.com/package/@dodgeball/trust-sdk-client). |
+| `source_token` | Either this or `session_id` | A token representing the device making the request. Obtained from the [Client SDK](https://www.npmjs.com/package/@spreedly/composer-sdk-client). |
 | `session_id` | Either this or `source_token` | The current session ID of the request. |
 | `user_id` | No | The ID of the user in your database, once you know it (for example, after registration). |
 | `use_verification_id` | No | `checkpoint` only. The ID of a verification the user already completed. See [useVerification](#useverification). |
