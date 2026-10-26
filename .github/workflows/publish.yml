@@ -94,6 +94,9 @@ jobs:
           echo "${SYFT_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar -xzf "${ARCHIVE}" syft
           ./syft scan "dir:${ROOT}" --override-default-catalogers ruby-installed-gemspec-cataloger --source-name "${NAME}" --source-version "${VERSION}" -o cyclonedx-json=sbom.cdx.json
+          # syft records the scanned folder as a file with no purl.
+          jq --arg purl "pkg:gem/${NAME}@${VERSION}" '.metadata.component += {type: "library", purl: $purl}' sbom.cdx.json > "${RUNNER_TEMP}/sbom.cdx.json"
+          mv "${RUNNER_TEMP}/sbom.cdx.json" sbom.cdx.json
 
       # Scans the files customers receive. The hash pins the download; --redact
       # keeps a found secret's value out of the public log while --verbose
