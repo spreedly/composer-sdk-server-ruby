@@ -95,8 +95,9 @@ jobs:
           tar -xzf "${ARCHIVE}" syft
           ./syft scan "dir:${ROOT}" --override-default-catalogers ruby-installed-gemspec-cataloger --source-name "${NAME}" --source-version "${VERSION}" -o cyclonedx-json=sbom.cdx.json
           # syft records the scanned folder as a file with no purl, and lists
-          # the gem itself among its components.
-          jq --arg purl "pkg:gem/${NAME}@${VERSION}" '.metadata.component += {type: "library", purl: $purl} | .components |= map(select(.purl != $purl))' sbom.cdx.json > "${RUNNER_TEMP}/sbom.cdx.json"
+          # the gem itself, with its license and links, among its components.
+          # Move that entry onto the root.
+          jq --arg purl "pkg:gem/${NAME}@${VERSION}" '(first(.components[] | select(.purl == $purl)) // error("\($purl) is not in the SBOM")) as $gem | .metadata.component += ($gem | del(."bom-ref")) | .components |= map(select(.purl != $purl))' sbom.cdx.json > "${RUNNER_TEMP}/sbom.cdx.json"
           mv "${RUNNER_TEMP}/sbom.cdx.json" sbom.cdx.json
 
       # Scans the files customers receive. The hash pins the download; --redact
