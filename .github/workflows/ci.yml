@@ -14,7 +14,7 @@ jobs:
     name: RuboCop
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -33,7 +33,7 @@ jobs:
         # Mirror `required_ruby_version` in the gemspec (>= 3.2) through current stable.
         ruby-version: ["3.2", "3.3", "3.4"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: ruby/setup-ruby@v1
         with:
