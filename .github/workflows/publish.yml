@@ -143,7 +143,7 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
       GEM: ${{ needs.build.outputs.gem }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release
 
@@ -171,7 +171,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release
 
