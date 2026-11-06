@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (2026-11-06)
+
+No changes to the SDK's code.
+
+### Changed
+- The README's frontend example imports `Composer` from `@spreedly/composer-sdk-client` and calls `composer.getSourceToken()` and `composer.handleVerification()`.
+
 ## 1.0.0 (2026-10-27)
 
 First release as `spreedly-composer-sdk-server`. If you're upgrading from `dodgeball-trust-sdk-ruby`, read **Changed** and **Removed**.
